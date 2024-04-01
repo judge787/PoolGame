@@ -603,11 +603,34 @@ class Database:
         """, (tableID + 1, shotID + 1, tableID + 1, shotID + 1))
         cursor.close()
 
+    def gameExists(self, gameName):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT 1 FROM Game WHERE GAMENAME = ?", (gameName,))
+        game_exists = cursor.fetchone()
+        cursor.close()
+        return bool(game_exists)
+
+    def linkTableShot(self, tableID, shotID):
+        cursor = self.conn.cursor()
+        # This query checks if the combination of tableID and shotID already exists to avoid duplicates.
+        cursor.execute("""
+            INSERT INTO TableShot (TABLEID, SHOTID)
+            SELECT ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM TableShot WHERE TABLEID = ? AND SHOTID = ?
+            )
+        """, (tableID + 1, shotID + 1, tableID + 1, shotID + 1))
+        self.conn.commit()
+        cursor.close()
+
+
     #***********************************************************************************
 
     def close(self):
         self.conn.commit();
         self.conn.close();
+
+
     
 
 ################################################################################
@@ -631,29 +654,65 @@ class Game:
         else:
             raise ValueError("Incorrect arguments provided to Game class.")
 
-    def shoot(self, gameName, playerName, table, vel_x, vel_y):
-        player_id = self.db.getPlayerID(playerName)
-        if player_id is None:
-            raise Exception(f"No player found with name: {playerName}")
+    # def shoot(self, gameName, playerName, table, vel_x, vel_y):
+    #     player_id = self.db.getPlayerID(playerName)
+    #     if player_id is None:
+    #         raise Exception(f"No player found with name: {playerName}")
 
-        shot_id = self.db.newShot(self.gameID, player_id)
-        table.cueBall(vel_x, vel_y)
+    #     shot_id = self.db.newShot(self.gameID, player_id)
+    #     table.cueBall(vel_x, vel_y)
 
-        # Iteratively handle table states and shots
-        ongoing = True
-        while ongoing:
-            current_segment = table.segment()
-            if not current_segment:
-                ongoing = False
-                continue
+    #     # Iteratively handle table states and shots
+    #     ongoing = True
+    #     while ongoing:
+    #         current_segment = table.segment()
+    #         if not current_segment:
+    #             ongoing = False
+    #             continue
 
-            segment_duration = int((current_segment.time - table.time) / FRAME_INTERVAL)
-            for i in range(segment_duration):
-                frame_time = i * FRAME_INTERVAL
-                updated_table = table.roll(frame_time)
-                updated_table.time = table.time + frame_time
-                updated_table_id = self.db.writeTable(updated_table)
-                self.db.newTableShot(updated_table_id, shot_id)
+    #         segment_duration = int((current_segment.time - table.time) / FRAME_INTERVAL)
+    #         for i in range(segment_duration):
+    #             frame_time = i * FRAME_INTERVAL
+    #             updated_table = table.roll(frame_time)
+    #             updated_table.time = table.time + frame_time
+    #             updated_table_id = self.db.writeTable(updated_table)
+    #             self.db.newTableShot(updated_table_id, shot_id)
 
-            table = current_segment
+    #         table = current_segment
+
+    def shoot(self, gameName, playerName, table, xvel, yvel):
+        # Check if the game exists
+        if not self.db.gameExists(gameName):
+            raise ValueError(f"Game with name {gameName} does not exist.")
+        
+        playerID = self.db.getPlayerID(playerName)
+        if playerID is None:
+            raise ValueError(f"No player found with name: {playerName}")
+        
+        shotID = self.db.newShot(self.gameID, playerID)
+        table.cueBall(xvel, yvel)  # Apply the initial velocities to the cue ball
+
+        svgTables = []  # Store SVG representations of table states
+        lastFrame = None  # Keep track of the last frame for return
+
+        while table:
+            segment = table.segment()  # Get the next table segment
+            if segment is None:  # Check if there are no more segments
+                lastFrame = table
+                break  # Exit the loop if no more segments are present
+
+            # Calculate and iterate over each frame within the current segment
+            segmentLength = int((segment.time - table.time) // FRAME_INTERVAL)
+            for i in range(1, segmentLength + 1):
+                frameTime = i * FRAME_INTERVAL
+                newTable = table.roll(frameTime)
+                newTableID = self.db.writeTable(newTable)  # Store the new table state in the database
+                self.db.linkTableShot(newTableID, shotID)  # Link the new table state to the current shot
+                svgTables.append(newTable.svg())  # Add the SVG representation of the new table state to the list
+
+            table = segment  # Update the table to the next segment
+
+        return svgTables, lastFrame
+
+
 

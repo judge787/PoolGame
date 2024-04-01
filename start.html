@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Pool Game</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #ECEFF1;
+        }
+        #gameHeader {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #gameBoard {
+            display: flex;
+            justify-content: space-around;
+            width: 90vw;
+            max-width: 1200px;
+            box-shadow: 0px 0px 10px #B0BEC5;
+            padding: 20px;
+            background-color: #CFD8DC;
+            border-radius: 10px;
+        }
+        .participantInfo {
+            width: 20%;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #simulationContainer {
+            width: 60%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #poolTableContainer {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+        #cueOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameHeader">
+        <h1 id="poolGameTitle">Interactive Pool Simulator</h1>
+    </div>
+    <div id="gameBoard">
+        <div id="playerOne" class="participantInfo">
+            <h3 id="namePlayerOne">Player 1</h3>
+            <p id="statusPlayerOne"></p>
+            <p id="scorePlayerOne"></p>
+        </div>
+        <div id="simulationContainer">
+            <div id="poolTableContainer">
+                <!-- SVG Pool Table will be injected here -->
+            </div>
+            <svg id="cueOverlay"></svg>
+        </div>
+        <div id="playerTwo" class="participantInfo">
+            <h3 id="namePlayerTwo">Player 2</h3>
+            <p id="statusPlayerTwo"></p>
+            <p id="scorePlayerTwo"></p>
+        </div>
+    </div>
+</body>
+<script>
+    let cueBallElement;
+    let cueGraphic;
+    let drawingActive = false;
+    let horizontalVelocity, verticalVelocity;
+
+    document.addEventListener('DOMContentLoaded', (event) => {
+        initializeGame();
+    });
+
+    function drawCueLine() {
+        if (!drawingActive) return;
+
+        const overlay = document.getElementById('cueOverlay');
+        const lineStart = cueBallElement.getBoundingClientRect();
+
+        let startX = lineStart.left + lineStart.width / 2;
+        let startY = lineStart.top + lineStart.height / 2;
+
+        const cursorX = event.clientX;
+        const cursorY = event.clientY;
+
+        const deltaX = startX - cursorX;
+        const deltaY = startY - cursorY;
+
+        horizontalVelocity = deltaX * 20;
+        verticalVelocity = deltaY * 20;
+
+        horizontalVelocity = Math.max(-5000, Math.min(5000, horizontalVelocity));
+        verticalVelocity = Math.max(-5000, Math.min(5000, verticalVelocity));
+
+        let distance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+        let maxLineLength = 200;
+        if (distance > maxLineLength) {
+            let reductionFactor = maxLineLength / distance;
+            deltaX *= reductionFactor;
+            deltaY *= reductionFactor;
+        }
+
+        if (!cueGraphic) {
+            cueGraphic = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            cueGraphic.setAttribute('class', 'cueLine');
+            overlay.appendChild(cueGraphic);
+        }
+
+        cueGraphic.setAttribute('x1', startX);
+        cueGraphic.setAttribute('y1', startY);
+        cueGraphic.setAttribute('x2', startX - deltaX);
+        cueGraphic.setAttribute('y2', startY - deltaY);
+    }
+
+    function handleMouseDown() {
+        drawingActive = true;
+        document.body.style.cursor = drawingActive ? 'crosshair' : 'default';
+        document.addEventListener('mousemove', drawCueLine);
+        document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    function handleMouseUp() {
+        drawingActive = false;
+        document.body.style.cursor = 'default';
+        document.removeEventListener('mousemove', drawCueLine);
+        document.removeEventListener('mouseup', handleMouseUp);
+        if (cueGraphic) {
+            document.getElementById('cueOverlay').innerHTML = "";
+            cueGraphic = null;
+            executeShot(updateGameState);
+        }
+    }
+
+    function executeShot(callback) {
+    const httpRequest = new XMLHttpRequest();
+    httpRequest.onload = function() {
+        if (this.status === 200) {
+            try {
+                const response = JSON.parse(this.responseText);
+                updateGameState(response);
+                if (typeof callback === "function") {
+                    callback();
+                }
+            } catch (e) {
+                console.error("Could not parse response:", e);
+            }
+        } else {
+            console.error("Failed to execute shot:", this.status, this.statusText);
+        }
+    };
+    httpRequest.open("POST", "/shoot", true);
+    httpRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    httpRequest.send(`xVelocity=${encodeURIComponent(horizontalVelocity)}&yVelocity=${encodeURIComponent(verticalVelocity)}`);
+}
+
+function initializeGame() {
+    getGameState(function() {
+        console.log("Game State Initialized");
+    });
+}
+
+function getGameState(callback) {
+    const httpRequest = new XMLHttpRequest();
+    httpRequest.onload = function() {
+        if (this.status === 200) {
+            const gameState = JSON.parse(this.responseText);
+            if (typeof callback === "function") {
+                callback(gameState);
+            }
+        } else {
+            console.error("Failed to retrieve game state:", this.status, this.statusText);
+        }
+    };
+    httpRequest.open("GET", `/getGameState?id=${encodeURIComponent(id)}`, true);
+    httpRequest.send();
+}
+
+function updateGameDisplay(gameState) {
+    document.getElementById('namePlayerOne').innerText = gameState.player1Name;
+    document.getElementById('scorePlayerOne').innerText = `Score: ${gameState.player1Score}`;
+    document.getElementById('statusPlayerOne').innerText = gameState.p1Playing ? "Playing" : "";
+
+    document.getElementById('namePlayerTwo').innerText = gameState.player2Name;
+    document.getElementById('scorePlayerTwo').innerText = `Score: ${gameState.player2Score}`;
+    document.getElementById('statusPlayerTwo').innerText = gameState.p2Playing ? "Playing" : "";
+
+    document.getElementById('poolGameTitle').innerText = gameState.gameName;
+}
+
+function updateGameState(gameUpdate) {
+    // Assume gameUpdate contains an object with updated game state
+    updateGameDisplay(gameUpdate);
+    if (gameUpdate.poolTableSvg) {
+        document.getElementById('poolTableContainer').innerHTML = gameUpdate.poolTableSvg;
+    }
+    setupCueBallListener(); // Set up the listener again for the new cue ball
+}
+
+function setupCueBallListener() {
+    cueBallElement = document.querySelector('#poolTableContainer circle[fill="WHITE"]');
+    if (cueBallElement) {
+        cueBallElement.addEventListener('mousedown', handleMouseDown);
+    }
+}
+
+// Call initializeGame to start the process
+initializeGame();
+</script>
+</html>
