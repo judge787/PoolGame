@@ -30,7 +30,7 @@ _phylib.so: phylib_wrap.o
 
 # Clean target
 clean:
-	rm -f *.o *.so phylib_wrap.c phylib.py
+	rm -f *.o *.so phylib_wrap.c phylib.py phylib.db
 
 # Set the library path for runtime
 export LD_LIBRARY_PATH := $(shell pwd)

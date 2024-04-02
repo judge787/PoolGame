@@ -26,7 +26,7 @@ FRAME_INTERVAL = 0.01
 HEADER = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
 "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg width="700" height="1375" viewBox="-25 -25 1400 2750"
+<svg id="gameSVG" width="700" height="1375" viewBox="-25 -25 1400 2750"
 xmlns="http://www.w3.org/2000/svg"
 xmlns:xlink="http://www.w3.org/1999/xlink">
 <rect width="1350" height="2700" x="0" y="0" fill="#C0D0C0" />""";
@@ -339,38 +339,29 @@ class Table( phylib.phylib_table ):
 
     def cueBall(self, vel_x, vel_y):
         """
-        Initialize the cue ball with given velocities and directly compute its acceleration.
+        Set velocities for the cue ball and calculate its acceleration due to drag.
         """
-
-        cue = None
-        # Direct search for the cue ball within the collection
-        for ball in self:
-            if isinstance(ball, StillBall) and ball.obj.still_ball.number == 0:
-                cue = ball
-                break
-
-        if cue is not None:
-            # Store initial position
-            x_initial = cue.obj.still_ball.pos.x
-            y_initial = cue.obj.still_ball.pos.y
-
-            # Transition the ball to a moving state
-            cue.type = phylib.PHYLIB_ROLLING_BALL
-
-            # Compute acceleration with given velocities
-            magnitude = math.sqrt(vel_x**2 + vel_y**2)
-            acceleration_x = (-vel_x * DRAG / magnitude if magnitude > VEL_EPSILON and vel_x != 0 else 0.0)
-            acceleration_y = (-vel_y * DRAG / magnitude if magnitude > VEL_EPSILON and vel_y != 0 else 0.0)
-
-            # Update the cue ball's properties to reflect its new state
-            cue.obj.rolling_ball.pos.x = x_initial
-            cue.obj.rolling_ball.pos.y = y_initial
-            cue.obj.rolling_ball.vel.x = vel_x
-            cue.obj.rolling_ball.vel.y = vel_y
-            cue.obj.rolling_ball.acc.x = acceleration_x
-            cue.obj.rolling_ball.acc.y = acceleration_y
-            cue.obj.rolling_ball.number = 0
-
+        
+        # Locate the cue ball among potentially stationary balls
+        cueBallFound = next((b for b in self if isinstance(b, StillBall) and b.obj.still_ball.number == 0), None)
+        
+        if cueBallFound:
+            # Capture starting coordinates
+            startX, startY = cueBallFound.obj.still_ball.pos.x, cueBallFound.obj.still_ball.pos.y
+            
+            # Switch state to indicate motion
+            cueBallFound.type = phylib.PHYLIB_ROLLING_BALL
+            
+            # Determine accelerations based on drag and input velocities
+            speed = math.sqrt(vel_x**2 + vel_y**2)
+            accelX = (-vel_x * DRAG / speed if speed > VEL_EPSILON and vel_x != 0 else 0.0)
+            accelY = (-vel_y * DRAG / speed if speed > VEL_EPSILON and vel_y != 0 else 0.0)
+            
+            # Apply updates to reflect movement
+            cueBallFound.obj.rolling_ball.pos.x, cueBallFound.obj.rolling_ball.pos.y = startX, startY
+            cueBallFound.obj.rolling_ball.vel.x, cueBallFound.obj.rolling_ball.vel.y = vel_x, vel_y
+            cueBallFound.obj.rolling_ball.acc.x, cueBallFound.obj.rolling_ball.acc.y = accelX, accelY
+            cueBallFound.obj.rolling_ball.number = 0
 
 
 #***********************************************************************************
@@ -533,41 +524,56 @@ class Database:
 
    #***********************************************************************************
 
-    def getGame(self, gameID):
-        cursor = self.conn.cursor()
+    def getGame(self, gameIdentifier):
+        # Initialize the database cursor for query execution
+        gameCursor = self.conn.cursor()
 
-        query_result = cursor.execute("""
-            SELECT Game.GAMENAME, Player.PLAYERNAME
-            FROM Game
-            INNER JOIN Player ON Game.GAMID = Player.GAMEID
-            WHERE Game.GAMEID = ?
-            ORDER BY Player.PLAYERID ASC
-        """, (gameID + 1,)).fetchall()
+        # Query to gather game and associated players' information
+        queryResult = gameCursor.execute("""SELECT GAMEID, GAMENAME, PLAYERNAME
+                                            FROM Game
+                                            JOIN Player ON Game.GAMEID = Player.GAMEID
+                                            WHERE Game.GAMEID = ?
+                                            ORDER BY PLAYERID""", (gameIdentifier + 1,)).fetchall()
 
-        if not query_result:
-            cursor.close()
+        # If no matching game is found, close the cursor and return None
+        if not queryResult:
+            gameCursor.close()
             return None
 
-        game_info = [query_result[0][0]]  # Initialize with game name
-        player_names = [result[1] for result in query_result]  # Extract player names
-        game_info.extend(player_names)
+        # Extracting game name and initializing a list with it
+        gameInfo = [queryResult[0][1]]
 
-        cursor.close()
-        return game_info
+        # Appending player names to the list
+        for entry in queryResult:
+            gameInfo.append(entry[2])
+
+        # Closing the cursor after commiting any pending transaction
+        gameCursor.close()
+
+        # Returning the composite list containing game name followed by player names
+        return gameInfo
 
     #***********************************************************************************
+    
+    def setGame(self, game):
+        # Establish database interaction
+        db_cursor = self.conn.cursor()
 
-    def setGame(self, gameDetails):
-        cursor = self.conn.cursor()
+        # Insert the game's name into the 'Game' table and retrieve the game ID
+        db_cursor.execute("INSERT INTO Game (GAMENAME) VALUES (?)", (game.gameName,))
+        game_id = db_cursor.lastrowid
 
-        cursor.execute("INSERT INTO Game (GAMENAME) VALUES (?)", (gameDetails.gameName,))
-        new_gameID = cursor.lastrowid
+        # Organize player names for batch insertion into 'Player' table
+        players = [(game_id, game.player1Name), (game_id, game.player2Name)]
+        db_cursor.executemany("INSERT INTO Player (GAMEID, PLAYERNAME) VALUES (?, ?)", players)
 
-        players = [(new_gameID, gameDetails.player1Name), (new_gameID, gameDetails.player2Name)]
-        cursor.executemany("INSERT INTO Player (GAMEID, PLAYERNAME) VALUES (?, ?)", players)
+        # Commit the transaction to the database and close the cursor
+        self.conn.commit()
+        db_cursor.close()
 
-        cursor.close()
-        return new_gameID - 1
+        # Return the game ID, adjusted by subtracting one
+        return game_id - 1
+
 
     #***********************************************************************************
 
@@ -630,89 +636,74 @@ class Database:
         self.conn.commit();
         self.conn.close();
 
-
-    
-
 ################################################################################
 
 class Game:
     def __init__(self, gameID=None, gameName=None, player1Name=None, player2Name=None):
-        self.db = Database()
-        self.db.createDB()
-        self.gameCursor = self.db.conn.cursor()
+        """
+        Initializes a Game instance either by loading an existing game using its ID
+        or by creating a new game with provided names. Validates the provided arguments
+        to determine the action.
+        """
+        # Initialize database connection and establish a cursor
+        self.database = Database()
+        self.database.createDB()
+        self.cursor = self.database.conn.cursor()
 
-        if gameID and not any([gameName, player1Name, player2Name]):
-            game_details = self.db.getGame(gameID)
-            if game_details:
-                self.gameID, self.gameName = gameID, game_details[0]
-                self.player1Name, self.player2Name = game_details[1], game_details[2]
+        # Scenario: Load existing game by ID
+        if gameID is not None and not any([gameName, player1Name, player2Name]):
+            game_data = self.database.getGame(gameID)
+            if game_data:
+                self.gameID, self.gameName, self.player1Name, self.player2Name = gameID, game_data[0], game_data[1], game_data[2]
             else:
-                raise ValueError("Specified game does not exist.")
-        elif all([type(arg) is str for arg in [gameName, player1Name, player2Name]]) and gameID is None:
-            self.gameName, self.player1Name, self.player2Name = gameName, player1Name, player2Name
-            self.gameID = self.db.setGame(self)
+                raise ValueError("Game does not exist")
+        
+        # Scenario: Create new game with provided names
+        elif all([gameName, player1Name, player2Name]) and gameID is None:
+            self.gameName = gameName
+            self.player1Name = player1Name
+            self.player2Name = player2Name
+            # Insert new game into the database and store its ID
+            self.gameID = self.database.setGame(self)
+        
         else:
-            raise ValueError("Incorrect arguments provided to Game class.")
+            # Handle invalid constructor usage
+            raise TypeError("Invalid combination of arguments for Game constructor")
 
-    # def shoot(self, gameName, playerName, table, vel_x, vel_y):
-    #     player_id = self.db.getPlayerID(playerName)
-    #     if player_id is None:
-    #         raise Exception(f"No player found with name: {playerName}")
 
-    #     shot_id = self.db.newShot(self.gameID, player_id)
-    #     table.cueBall(vel_x, vel_y)
-
-    #     # Iteratively handle table states and shots
-    #     ongoing = True
-    #     while ongoing:
-    #         current_segment = table.segment()
-    #         if not current_segment:
-    #             ongoing = False
-    #             continue
-
-    #         segment_duration = int((current_segment.time - table.time) / FRAME_INTERVAL)
-    #         for i in range(segment_duration):
-    #             frame_time = i * FRAME_INTERVAL
-    #             updated_table = table.roll(frame_time)
-    #             updated_table.time = table.time + frame_time
-    #             updated_table_id = self.db.writeTable(updated_table)
-    #             self.db.newTableShot(updated_table_id, shot_id)
-
-    #         table = current_segment
+    #***********************************************************************************
 
     def shoot(self, gameName, playerName, table, xvel, yvel):
-        # Check if the game exists
-        if not self.db.gameExists(gameName):
+        if not self.database.gameExists(gameName):
             raise ValueError(f"Game with name {gameName} does not exist.")
         
-        playerID = self.db.getPlayerID(playerName)
+        playerID = self.database.getPlayerID(playerName)
         if playerID is None:
             raise ValueError(f"No player found with name: {playerName}")
         
-        shotID = self.db.newShot(self.gameID, playerID)
-        table.cueBall(xvel, yvel)  # Apply the initial velocities to the cue ball
+        shotID = self.database.newShot(self.gameID, playerID)
+        table.cueBall(xvel, yvel)  # Initialize cue ball velocity
 
-        svgTables = []  # Store SVG representations of table states
-        lastFrame = None  # Keep track of the last frame for return
+        finalSegment, svgTables = self.processTableSegment(table, shotID)
+        return finalSegment, svgTables
 
+    #***********************************************************************************
+    
+    def processTableSegment(self, table, shotID):
+        svgTables = []
         while table:
-            segment = table.segment()  # Get the next table segment
-            if segment is None:  # Check if there are no more segments
-                lastFrame = table
-                break  # Exit the loop if no more segments are present
+            nextSegment = table.segment()
+            if not nextSegment:
+                return table, svgTables
 
-            # Calculate and iterate over each frame within the current segment
-            segmentLength = int((segment.time - table.time) // FRAME_INTERVAL)
-            for i in range(1, segmentLength + 1):
-                frameTime = i * FRAME_INTERVAL
-                newTable = table.roll(frameTime)
-                newTableID = self.db.writeTable(newTable)  # Store the new table state in the database
-                self.db.linkTableShot(newTableID, shotID)  # Link the new table state to the current shot
-                svgTables.append(newTable.svg())  # Add the SVG representation of the new table state to the list
+            framesCount = int((nextSegment.time - table.time) / FRAME_INTERVAL)
+            for frame in range(1, framesCount + 1):
+                frameTimestamp = frame * FRAME_INTERVAL
+                updatedTable = table.roll(frameTimestamp)
+                updatedTableID = self.database.writeTable(updatedTable)
+                self.database.linkTableShot(updatedTableID, shotID)
+                svgTables.append(updatedTable.svg())
 
-            table = segment  # Update the table to the next segment
-
-        return svgTables, lastFrame
-
-
+            table = nextSegment
+        return None, svgTables
 

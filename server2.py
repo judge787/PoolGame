@@ -14,26 +14,39 @@ gameInstance = None
 activePlayer = ""
 scorePlayerOne = 0
 scorePlayerTwo = 0
-isPlayerTwoActive = ""
-isPlayerOneActive = ""
-lastGameTable = None
+p1Play = ""
+p2Play = ""
+lastTable = None
 
 def setupTable():
-    # Initializes the pool table with balls in their starting positions
-    poolTable = Physics.Table()
-    ballPositions = [
-        # Cue ball and other balls' starting positions
-        Physics.StillBall(0, Physics.Coordinate(675, 2025)),  # Cue ball
-        
-        # Triangular rack configuration
-        Physics.StillBall(1, Physics.Coordinate(675, 675)),  # Front ball
-        Physics.StillBall(2, Physics.Coordinate(646, 618)),  # Second row, left
-        # ...add remaining ball positions here for brevity...
-        Physics.StillBall(15, Physics.Coordinate(788, 447))  # Last row, rightmost
+    table = Physics.Table()
+
+    positions = [
+        (0, 675, 2025),  # cue ball
+        (1, 675, 675),  # 1-ball
+        (2, 646, 618),  # left second row
+        (3, 705, 618),  # right
+        (4, 617, 561),  # left
+        (5, 675, 561),
+        (6, 732, 561),  # middle
+        (7, 588, 504),  # left
+        (8, 646, 504),
+        (9, 703, 504),  # middle
+        (10, 760, 504),  # middle
+        (11, 559, 447),  # left
+        (12, 617, 447),
+        (13, 674, 447),  # middle
+        (14, 731, 447),  # middle
+        (15, 788, 447)  # middle
     ]
-    for ball in ballPositions:
-        poolTable += ball
-    return poolTable
+
+    still_balls = [Physics.StillBall(num, Physics.Coordinate(x, y)) for num, x, y in positions]
+    
+
+    for sb in still_balls:
+        table += sb  
+
+    return table
 
 # Web server components
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -54,18 +67,29 @@ class RequestHandler(SimpleHTTPRequestHandler):
             self.wfile.write(bytes(htmlContent, "utf-8"))
         
         elif requestPath.path == '/gameStatus':
-            # Send current game status as JSON
-            gameStatus = {
-                "activePlayerOne": isPlayerOneActive,
-                "activePlayerTwo": isPlayerTwoActive,
-                "namePlayerOne": gameInstance.player1Name,
-                "namePlayerTwo": gameInstance.player2Name,
-                "scorePlayerOne": scorePlayerOne,
-                "scorePlayerTwo": scorePlayerTwo,
-                "tableSVG": lastGameTable.svg(),
-                "gameTitle": gameInstance.gameName
+            
+            response = dict(parse_qsl(requestPath.query))
+            id = int(response.get("id"))
+
+            gameData = {
+                "p1Play": p1Play,
+                "p2Play": p2Play,
+                "p1Name": gameInstance.player1Name,
+                "p2Name": gameInstance.player2Name,
+                "p1Score": scorePlayerOne,
+                "p2Score": scorePlayerTwo,
+                "svg": lastTable.svg(),
+                "gameName": gameInstance.gameName
             }
-            self.send_json_response(gameStatus)
+
+            response = json.dumps(gameData)
+            self.send_response( 200 ); # OK
+            self.send_header( "Content-type", "application/json" );
+            self.end_headers();
+
+            # send it to the broswer
+            self.wfile.write( bytes( response, "utf-8" ) );
+
         else:
             # Handle unknown paths
             self.send_error(404, f"Resource {self.path} not found.")
@@ -80,37 +104,58 @@ class RequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         requestPath = urlparse(self.path)
 
-        global gameInstance, lastGameTable, activePlayer  # Use global declarations for modifications
+        global gameInstance, lastTable, activePlayer  # Use global declarations for modifications
         
-        if requestPath.path == '/startGame':
+        if requestPath.path == '/start.html':
             # Processing form data to start a new game
             formData = cgi.FieldStorage(fp=self.rfile, headers=self.headers,
                                         environ={'REQUEST_METHOD': 'POST',
                                                  'CONTENT_TYPE': self.headers['Content-Type']})
 
-            playerOneName = formData.getvalue("player1_name")
-            playerTwoName = formData.getvalue("player2_name")
-            gameName = formData.getvalue("game_name")
+            playerOneName = formData.getvalue("firstPlayer")
+            playerTwoName = formData.getvalue("secondPlayer")
+            gameName = formData.getvalue("gameName")
             
+
             gameInstance = Physics.Game(gameName=gameName, player1Name=playerOneName, player2Name=playerTwoName)
             activePlayer = random.choice([playerOneName, playerTwoName])
-            lastGameTable = setupTable()
+            lastTable = setupTable()
 
-            # Serve the game interface
-            self.serve_html_file("gameInterface.html", gameInstance.gameID)
+            with open("start.html", "r") as file:
+                html = file.read()
+            
+            html = html.replace("{id}", str(gameInstance.gameID))
+
+            # generate the headers
+            self.send_response( 200 ); # OK
+            self.send_header( "Content-type", "text/html" );
+            self.send_header( "Content-length", len( html ) );
+            self.end_headers();
+
+            # send it to the broswer
+            self.wfile.write( bytes( html, "utf-8" ) );
+            file.close();
+
 
         elif requestPath.path == '/executeShot':
             # Handle shot execution logic
             formData = cgi.FieldStorage(fp=self.rfile, headers=self.headers,
                                         environ={'REQUEST_METHOD': 'POST',
                                                  'CONTENT_TYPE': self.headers['Content-Type']})
-            xVel = float(formData.getvalue('xVelocity'))
-            yVel = float(formData.getvalue('yVelocity'))
+            gameID = int(formData.getvalue('id'));
+            velocityX = float(formData.getvalue('velocityX'))
+            velocityY = float(formData.getvalue('velocityY'))
             
-            svgSequence, finalTable = gameInstance.shoot(gameName, activePlayer, lastGameTable, xVel, yVel)
-            lastGameTable = finalTable
+            lastTable, tableList = gameInstance.shoot(gameInstance.gameName, activePlayer, lastTable, velocityX, velocityY)
 
-            self.send_json_response(svgSequence)
+            tableList = json.dumps(tableList)
+
+            print("Called shoot")
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write( bytes( tableList, "utf-8" ) );
 
     def serve_html_file(self, fileName, gameId):
         # Method to serve HTML files with dynamic content

@@ -4,48 +4,40 @@
     <meta charset="UTF-8">
     <title>Interactive Pool Game</title>
     <style>
-        html, body {
-            height: 100%;
+        body {
+            height: 100vh;
             margin: 0;
             padding: 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background-color: #ECEFF1;
+            background-color: whitesmoke;
+            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+            color: white;
+
         }
         #gameHeader {
-            margin-bottom: 20px;
             text-align: center;
         }
         #gameBoard {
             display: flex;
-            justify-content: space-around;
             width: 90vw;
-            max-width: 1200px;
-            box-shadow: 0px 0px 10px #B0BEC5;
-            padding: 20px;
-            background-color: #CFD8DC;
-            border-radius: 10px;
+            height: 75vh;
+            box-shadow: 0px 0px 10px #000000;
+            align-items: center;
+            background-color: blueviolet;
         }
         .participantInfo {
-            width: 20%;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #simulationContainer {
-            width: 60%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 15px;
+            flex: 1;
+            text-align: center;
         }
         #poolTableContainer {
-            width: 100%;
             display: flex;
             justify-content: center;
-            position: relative;
+            align-items: center;
+            transform: scale(0.4);
         }
         #cueOverlay {
             position: absolute;
@@ -53,180 +45,236 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 10;
+            z-index: 999;
+            pointer-events: none;
         }
-        svg {
-            max-width: 100%;
-            height: auto;
+        .cueLine {
+            stroke: black;
+            stroke-width: 4;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        #poolGameTitle {
+            color: blueviolet !important;
         }
     </style>
 </head>
 <body>
     <div id="gameHeader">
-        <h1 id="poolGameTitle">Interactive Pool Simulator</h1>
+        <h1 id="poolGameTitle"></h1>
     </div>
     <div id="gameBoard">
         <div id="playerOne" class="participantInfo">
-            <h3 id="namePlayerOne">Player 1</h3>
             <p id="statusPlayerOne"></p>
+            <h3 id="namePlayerOne"></h3>
+            <bold>Score:</bold>
             <p id="scorePlayerOne"></p>
         </div>
-        <div id="simulationContainer">
-            <div id="poolTableContainer">
-                <!-- SVG Pool Table will be injected here -->
-            </div>
-            <svg id="cueOverlay"></svg>
+        <div id="poolTableContainer">
+            <!-- SVG Pool Table will be injected here -->
         </div>
         <div id="playerTwo" class="participantInfo">
-            <h3 id="namePlayerTwo">Player 2</h3>
             <p id="statusPlayerTwo"></p>
+            <h3 id="namePlayerTwo"></h3>
+            <bold>Score:</bold>
             <p id="scorePlayerTwo"></p>
         </div>
+
+        <svg id="cueOverlay"></svg>
+
     </div>
 </body>
 <script>
-    let cueBallElement;
-    let cueGraphic;
-    let drawingActive = false;
-    let horizontalVelocity, verticalVelocity;
+    let id = '{id}'
+    let targetBall;
+    let aimLine;
+    let isAiming = false;
+    let horizontalSpeed, verticalSpeed;
 
-    document.addEventListener('DOMContentLoaded', (event) => {
-        initializeGame();
-    });
+    function activateAim() {
+        if (!isAiming) {
+            return;
+        } else {
+            const overlay = document.getElementById('cueOverlay');
+            let overlayLeft = overlay.getBoundingClientRect().left;
+            let overlayTop = overlay.getBoundingClientRect().top;
+            const ballRect = targetBall.getBoundingClientRect();
+            const ballCenterX = (ballRect.width / 2) + ballRect.left;
+            const ballCenterY = (ballRect.height / 2) + ballRect.top;
 
-    function drawCueLine() {
-        if (!drawingActive) return;
+            const ballPosX = ballCenterX - overlayLeft;
+            const ballPosY = ballCenterY - overlayTop;
+            
+            const cursorPoint = overlay.createSVGPoint();
+            cursorPoint.x = event.clientX;
+            cursorPoint.y = event.clientY;
 
-        const overlay = document.getElementById('cueOverlay');
-        const lineStart = cueBallElement.getBoundingClientRect();
+            let cursorPos = cursorPoint.matrixTransform(overlay.getScreenCTM().inverse());
 
-        let startX = lineStart.left + lineStart.width / 2;
-        let startY = lineStart.top + lineStart.height / 2;
+            let deltaX = ballCenterX - cursorPoint.x;
+            let deltaY = ballCenterY - cursorPoint.y;
 
-        const cursorX = event.clientX;
-        const cursorY = event.clientY;
+            horizontalSpeed = deltaX * 10;
+            verticalSpeed = deltaY * 10;
 
-        const deltaX = startX - cursorX;
-        const deltaY = startY - cursorY;
+            horizontalSpeed = Math.min(4000, Math.max(-4000, horizontalSpeed));
+            verticalSpeed = Math.min(4000, Math.max(-4000, verticalSpeed));
 
-        horizontalVelocity = deltaX * 20;
-        verticalVelocity = deltaY * 20;
+            let distance = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
 
-        horizontalVelocity = Math.max(-5000, Math.min(5000, horizontalVelocity));
-        verticalVelocity = Math.max(-5000, Math.min(5000, verticalVelocity));
+            if (distance > 120) {
+                let scale = 120 / distance;
+                deltaX = scale * deltaX;
+                deltaY = scale * deltaY;
+            }
 
-        let distance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
-        let maxLineLength = 200;
-        if (distance > maxLineLength) {
-            let reductionFactor = maxLineLength / distance;
-            deltaX *= reductionFactor;
-            deltaY *= reductionFactor;
+            if (!aimLine) {
+                aimLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                aimLine.setAttribute('class', 'cueLine');
+                overlay.appendChild(aimLine);
+            }
+
+            aimLine.setAttribute('x1', ballCenterX);
+            aimLine.setAttribute('y1', ballCenterY);
+            aimLine.setAttribute('x2', ballCenterX - deltaX);
+            aimLine.setAttribute('y2', ballCenterY - deltaY);
         }
-
-        if (!cueGraphic) {
-            cueGraphic = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            cueGraphic.setAttribute('class', 'cueLine');
-            overlay.appendChild(cueGraphic);
-        }
-
-        cueGraphic.setAttribute('x1', startX);
-        cueGraphic.setAttribute('y1', startY);
-        cueGraphic.setAttribute('x2', startX - deltaX);
-        cueGraphic.setAttribute('y2', startY - deltaY);
     }
 
-    function handleMouseDown() {
-        drawingActive = true;
-        document.body.style.cursor = drawingActive ? 'crosshair' : 'default';
-        document.addEventListener('mousemove', drawCueLine);
-        document.addEventListener('mouseup', handleMouseUp);
+    function initiateAim() {
+        isAiming = true;
+        document.body.style.cursor = isAiming ? 'grab' : 'default';
+        document.addEventListener('mousemove', activateAim);
+        document.addEventListener('mouseup', endAim);
     }
 
-    function handleMouseUp() {
-        drawingActive = false;
-        document.body.style.cursor = 'default';
-        document.removeEventListener('mousemove', drawCueLine);
-        document.removeEventListener('mouseup', handleMouseUp);
-        if (cueGraphic) {
+    function endAim() {
+        isAiming = false;
+        document.body.style.cursor = isAiming ? 'grab' : 'default';
+        document.removeEventListener('mousemove', activateAim);
+        document.removeEventListener('mouseup', endAim);
+        if (aimLine) {
             document.getElementById('cueOverlay').innerHTML = "";
-            cueGraphic = null;
-            executeShot(updateGameState);
+            aimLine = null;
+            triggerShotAnimation()
         }
     }
 
-    function executeShot(callback) {
-    const httpRequest = new XMLHttpRequest();
-    httpRequest.onload = function() {
-        if (this.status === 200) {
-            try {
-                const response = JSON.parse(this.responseText);
-                updateGameState(response);
-                if (typeof callback === "function") {
-                    callback();
+    function initializeENV() {
+        isAiming = false;
+
+        aimLine = null;
+
+        svgTable = document.getElementById('gameSVG');
+
+        targetBall = svgTable.querySelector('circle[fill="WHITE"]');
+
+        if (targetBall) {
+            targetBall.addEventListener('mousedown', initiateAim);
+        } else {
+            console.error("Ball not found.");
+        }
+    }
+
+    function triggerShotAnimation() {
+        const httpRequest = new XMLHttpRequest();
+        httpRequest.onreadystatechange = function() {
+            if (this.readyState === XMLHttpRequest.DONE) {
+                if (this.status === 200) {
+                    try {
+                        // Attempt to parse the server response
+                        const animationFrames = JSON.parse(this.responseText);
+                        // If successful, start animating the SVG frames
+                        runSVGAnimation(animationFrames, gameStatus);
+                    } catch (parseError) {
+                        // Log and handle any parsing error
+                        console.error("Error parsing", parseError);
+                        gameStatus(initializeENV);
+                    }
+                } else {
+                    // Log if there's an error with the HTTP request
+                    console.error("Error: Shot request failed", this.statusText);
                 }
-            } catch (e) {
-                console.error("Could not parse response:", e);
             }
-        } else {
-            console.error("Failed to execute shot:", this.status, this.statusText);
-        }
-    };
-    httpRequest.open("POST", "/shoot", true);
-    httpRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    httpRequest.send(`xVelocity=${encodeURIComponent(horizontalVelocity)}&yVelocity=${encodeURIComponent(verticalVelocity)}`);
-}
+        };
+        httpRequest.open("POST", "/executeShot", true);
+        httpRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        httpRequest.send("id=" + encodeURIComponent(id) + "&velocityX=" + encodeURIComponent(horizontalSpeed) + "&velocityY=" + encodeURIComponent(verticalSpeed));
+    }
 
-function initializeGame() {
-    getGameState(function() {
-        console.log("Game State Initialized");
-    });
-}
+    // Animates SVG frames sequentially
+    function runSVGAnimation(frameData, onComplete) {
+        let frameIndex = 0;
 
-function getGameState(callback) {
-    const httpRequest = new XMLHttpRequest();
-    httpRequest.onload = function() {
-        if (this.status === 200) {
-            const gameState = JSON.parse(this.responseText);
-            if (typeof callback === "function") {
-                callback(gameState);
+        function displayNextFrame() {
+            const svgDisplayArea = document.getElementById('poolTableContainer');
+
+            svgDisplayArea.innerHTML = '';
+
+            // Load and display the current frame
+            const currentFrame = frameData[frameIndex];
+            svgDisplayArea.innerHTML = currentFrame;
+            frameIndex++;
+
+            // Continue to the next frame if available
+            if (frameIndex < frameData.length) {
+                setTimeout(displayNextFrame, 1); // Proceed to next frame
+            } else if (onComplete) {
+                // If all frames are displayed, call the completion handler
+                onComplete(initializeENV);
             }
-        } else {
-            console.error("Failed to retrieve game state:", this.status, this.statusText);
         }
-    };
-    httpRequest.open("GET", `/getGameState?id=${encodeURIComponent(id)}`, true);
-    httpRequest.send();
-}
 
-function updateGameDisplay(gameState) {
-    document.getElementById('namePlayerOne').innerText = gameState.player1Name;
-    document.getElementById('scorePlayerOne').innerText = `Score: ${gameState.player1Score}`;
-    document.getElementById('statusPlayerOne').innerText = gameState.p1Playing ? "Playing" : "";
-
-    document.getElementById('namePlayerTwo').innerText = gameState.player2Name;
-    document.getElementById('scorePlayerTwo').innerText = `Score: ${gameState.player2Score}`;
-    document.getElementById('statusPlayerTwo').innerText = gameState.p2Playing ? "Playing" : "";
-
-    document.getElementById('poolGameTitle').innerText = gameState.gameName;
-}
-
-function updateGameState(gameUpdate) {
-    // Assume gameUpdate contains an object with updated game state
-    updateGameDisplay(gameUpdate);
-    if (gameUpdate.poolTableSvg) {
-        document.getElementById('poolTableContainer').innerHTML = gameUpdate.poolTableSvg;
+        // Initiate the frame display sequence
+        displayNextFrame();
     }
-    setupCueBallListener(); // Set up the listener again for the new cue ball
-}
 
-function setupCueBallListener() {
-    cueBallElement = document.querySelector('#poolTableContainer circle[fill="WHITE"]');
-    if (cueBallElement) {
-        cueBallElement.addEventListener('mousedown', handleMouseDown);
+    function updateElement(id, gamestat) {
+        const element = document.getElementById(id);
+        element.innerHTML = "";
+        element.innerHTML = gamestats[gamestat];
     }
-}
 
-// Call initializeGame to start the process
-initializeGame();
+
+
+    function gameStatus(callback) {
+        let request = new XMLHttpRequest();
+        request.onreadystatechange = function() {
+            // Ready state 4 means the request is done.
+            if (this.readyState === XMLHttpRequest.DONE) {
+                // Status 200 means "OK"
+                if (this.status === 200) {
+                    // Successfully received response
+                    let gameInfo = JSON.parse(this.responseText);
+
+                    // Updating elements with received game information
+                    document.getElementById('poolTableContainer').innerHTML = gameInfo.svg;
+                    document.getElementById('poolGameTitle').innerHTML = gameInfo.gameName;
+                    document.getElementById('namePlayerOne').innerHTML = gameInfo.p1Name;
+                    document.getElementById('namePlayerTwo').innerHTML = gameInfo.p2Name;
+                    document.getElementById('statusPlayerOne').innerHTML = gameInfo.p1Play;
+                    document.getElementById('statusPlayerTwo').innerHTML = gameInfo.p2Play;
+                    document.getElementById('scorePlayerOne').innerHTML = gameInfo.p1Score;
+                    document.getElementById('scorePlayerTwo').innerHTML = gameInfo.p2Score;
+
+                    // Execute callback if provided
+                    if (callback) {
+                        callback();
+                    }
+                } else {
+                    // Handle potential errors
+                    console.error("Failed to retrieve game status:", this.statusText);
+                }
+            }
+        };
+        
+        // Setting up and sending the HTTP GET request
+        request.open("GET", `/gameStatus?id=${encodeURIComponent(id)}`, true);
+        request.send();
+    }
+
+    // Invoke gameStatus with initialization callback
+    gameStatus(initializeENV);
+
 </script>
 </html>
