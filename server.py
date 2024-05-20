@@ -42,7 +42,6 @@ def setupTable():
 
     still_balls = [Physics.StillBall(num, Physics.Coordinate(x, y)) for num, x, y in positions]
     
-
     for sb in still_balls:
         table += sb  
 

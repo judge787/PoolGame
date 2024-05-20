@@ -15,7 +15,6 @@ phylib_object *phylib_new_still_ball(unsigned char number, phylib_coord *pos) {
     return obj;
 }
 
-
 phylib_object *phylib_new_rolling_ball(unsigned char number, phylib_coord *pos, phylib_coord *vel, phylib_coord *acc) {
     phylib_object *obj = calloc(1, sizeof(phylib_object)); //changed from malloc to calloc
     if (!obj) {

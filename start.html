@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Interactive Pool Game</title>
+    <title>Pool Game</title>
     <style>
         body {
             height: 100vh;
@@ -15,7 +15,6 @@
             background-color: whitesmoke;
             font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
             color: white;
-
         }
         #gameHeader {
             text-align: center;
@@ -26,7 +25,7 @@
             height: 75vh;
             box-shadow: 0px 0px 10px #000000;
             align-items: center;
-            background-color: blueviolet;
+            background-color: rgb(197, 196, 198);
         }
         .participantInfo {
             padding: 15px;
@@ -55,7 +54,7 @@
             z-index: 1000;
         }
         #poolGameTitle {
-            color: blueviolet !important;
+            color: black !important;
         }
     </style>
 </head>
@@ -237,41 +236,55 @@
 
 
 
-    function gameStatus(callback) {
-        let request = new XMLHttpRequest();
-        request.onreadystatechange = function() {
-            // Ready state 4 means the request is done.
-            if (this.readyState === XMLHttpRequest.DONE) {
-                // Status 200 means "OK"
-                if (this.status === 200) {
-                    // Successfully received response
-                    let gameInfo = JSON.parse(this.responseText);
+// Function to request and update the game status, then execute a callback if provided
+function gameStatus(callback) {
+    // Create a new XMLHttpRequest object to communicate with the server
+    let request = new XMLHttpRequest();
 
-                    // Updating elements with received game information
-                    document.getElementById('poolTableContainer').innerHTML = gameInfo.svg;
-                    document.getElementById('poolGameTitle').innerHTML = gameInfo.gameName;
-                    document.getElementById('namePlayerOne').innerHTML = gameInfo.p1Name;
-                    document.getElementById('namePlayerTwo').innerHTML = gameInfo.p2Name;
-                    document.getElementById('statusPlayerOne').innerHTML = gameInfo.p1Play;
-                    document.getElementById('statusPlayerTwo').innerHTML = gameInfo.p2Play;
-                    document.getElementById('scorePlayerOne').innerHTML = gameInfo.p1Score;
-                    document.getElementById('scorePlayerTwo').innerHTML = gameInfo.p2Score;
+    // Define a function to be called when the readyState of the request changes
+    request.onreadystatechange = function() {
+        // Check if the request is complete (readyState 4)
+        if (this.readyState === XMLHttpRequest.DONE) {
+            // Check if the request was successful (status 200)
+            if (this.status === 200) {
+                // Parse the JSON response text to a JavaScript object
+                let gameInfo = JSON.parse(this.responseText);
 
-                    // Execute callback if provided
-                    if (callback) {
-                        callback();
-                    }
-                } else {
-                    // Handle potential errors
-                    console.error("Failed to retrieve game status:", this.statusText);
+                // Update the inner HTML of the 'poolTableContainer' element with the SVG content of the pool table
+                document.getElementById('poolTableContainer').innerHTML = gameInfo.svg;
+                // Update the inner HTML of the 'poolGameTitle' element with the game name
+                document.getElementById('poolGameTitle').innerHTML = gameInfo.gameName;
+                // Update the inner HTML of the 'namePlayerOne' element with the first player's name
+                document.getElementById('namePlayerOne').innerHTML = gameInfo.p1Name;
+                // Update the inner HTML of the 'namePlayerTwo' element with the second player's name
+                document.getElementById('namePlayerTwo').innerHTML = gameInfo.p2Name;
+                // Update the inner HTML of the 'statusPlayerOne' element with the play status of the first player
+                document.getElementById('statusPlayerOne').innerHTML = gameInfo.p1Play;
+                // Update the inner HTML of the 'statusPlayerTwo' element with the play status of the second player
+                document.getElementById('statusPlayerTwo').innerHTML = gameInfo.p2Play;
+                // Update the inner HTML of the 'scorePlayerOne' element with the score of the first player
+                document.getElementById('scorePlayerOne').innerHTML = gameInfo.p1Score;
+                // Update the inner HTML of the 'scorePlayerTwo' element with the score of the second player
+                document.getElementById('scorePlayerTwo').innerHTML = gameInfo.p2Score;
+
+                // If a callback function is provided, execute it
+                if (callback) {
+                    callback();
                 }
+            } else {
+                // Log an error message if the request failed
+                console.error("Failed to retrieve game status:", this.statusText);
             }
-        };
-        
-        // Setting up and sending the HTTP GET request
-        request.open("GET", `/gameStatus?id=${encodeURIComponent(id)}`, true);
-        request.send();
-    }
+        }
+    };
+    
+    // Initialize the request by specifying the HTTP method (GET), the URL, and setting async to true
+    request.open("GET", `/gameStatus?id=${encodeURIComponent(id)}`, true);
+
+    // Send the request to the server
+    request.send();
+}
+
 
     // Invoke gameStatus with initialization callback
     gameStatus(initializeENV);
