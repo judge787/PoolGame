@@ -90,74 +90,112 @@
     let isAiming = false;
     let horizontalSpeed, verticalSpeed;
 
-    function activateAim() {
-        if (!isAiming) {
-            return;
-        } else {
-            const overlay = document.getElementById('cueOverlay');
-            let overlayLeft = overlay.getBoundingClientRect().left;
-            let overlayTop = overlay.getBoundingClientRect().top;
-            const ballRect = targetBall.getBoundingClientRect();
-            const ballCenterX = (ballRect.width / 2) + ballRect.left;
-            const ballCenterY = (ballRect.height / 2) + ballRect.top;
 
-            const ballPosX = ballCenterX - overlayLeft;
-            const ballPosY = ballCenterY - overlayTop;
-            
-            const cursorPoint = overlay.createSVGPoint();
-            cursorPoint.x = event.clientX;
-            cursorPoint.y = event.clientY;
+// Function to handle the aiming mechanism
+function activateAim() {
+    // If not in aiming mode, exit the function
+    if (!isAiming) {
+        return;
+    } else {
+        // Get the overlay element for displaying the cue line
+        const overlay = document.getElementById('cueOverlay');
+        // Get the left and top positions of the overlay element
+        let overlayLeft = overlay.getBoundingClientRect().left;
+        let overlayTop = overlay.getBoundingClientRect().top;
+        // Get the bounding rectangle of the target ball
+        const ballRect = targetBall.getBoundingClientRect();
+        // Calculate the center coordinates of the ball
+        const ballCenterX = (ballRect.width / 2) + ballRect.left;
+        const ballCenterY = (ballRect.height / 2) + ballRect.top;
 
-            let cursorPos = cursorPoint.matrixTransform(overlay.getScreenCTM().inverse());
+        // Calculate the ball's position relative to the overlay
+        const ballPosX = ballCenterX - overlayLeft;
+        const ballPosY = ballCenterY - overlayTop;
+        
+        // Create a point to represent the cursor's position
+        const cursorPoint = overlay.createSVGPoint();
+        cursorPoint.x = event.clientX;
+        cursorPoint.y = event.clientY;
 
-            let deltaX = ballCenterX - cursorPoint.x;
-            let deltaY = ballCenterY - cursorPoint.y;
+        // Transform the cursor position to the overlay's coordinate system
+        let cursorPos = cursorPoint.matrixTransform(overlay.getScreenCTM().inverse());
 
-            horizontalSpeed = deltaX * 10;
-            verticalSpeed = deltaY * 10;
+        // Calculate the difference in position between the ball center and the cursor
+        let deltaX = ballCenterX - cursorPoint.x;
+        let deltaY = ballCenterY - cursorPoint.y;
 
-            horizontalSpeed = Math.min(4000, Math.max(-4000, horizontalSpeed));
-            verticalSpeed = Math.min(4000, Math.max(-4000, verticalSpeed));
+        // Calculate the speed of the shot based on the position differences
+        horizontalSpeed = deltaX * 10;
+        verticalSpeed = deltaY * 10;
 
-            let distance = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
+        // Clamp the speed values to ensure they are within a reasonable range
+        horizontalSpeed = Math.min(4000, Math.max(-4000, horizontalSpeed));
+        verticalSpeed = Math.min(4000, Math.max(-4000, verticalSpeed));
 
-            if (distance > 120) {
-                let scale = 120 / distance;
-                deltaX = scale * deltaX;
-                deltaY = scale * deltaY;
-            }
+        // Calculate the distance between the ball center and the cursor
+        let distance = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
 
-            if (!aimLine) {
-                aimLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                aimLine.setAttribute('class', 'cueLine');
-                overlay.appendChild(aimLine);
-            }
-
-            aimLine.setAttribute('x1', ballCenterX);
-            aimLine.setAttribute('y1', ballCenterY);
-            aimLine.setAttribute('x2', ballCenterX - deltaX);
-            aimLine.setAttribute('y2', ballCenterY - deltaY);
+        // If the distance is greater than 120, scale it down proportionally
+        if (distance > 120) {
+            let scale = 120 / distance;
+            deltaX = scale * deltaX;
+            deltaY = scale * deltaY;
         }
-    }
 
-    function initiateAim() {
-        isAiming = true;
-        document.body.style.cursor = isAiming ? 'grab' : 'default';
-        document.addEventListener('mousemove', activateAim);
-        document.addEventListener('mouseup', endAim);
-    }
-
-    function endAim() {
-        isAiming = false;
-        document.body.style.cursor = isAiming ? 'grab' : 'default';
-        document.removeEventListener('mousemove', activateAim);
-        document.removeEventListener('mouseup', endAim);
-        if (aimLine) {
-            document.getElementById('cueOverlay').innerHTML = "";
-            aimLine = null;
-            triggerShotAnimation()
+        // If the aiming line does not exist, create a new SVG line element for it
+        if (!aimLine) {
+            aimLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            aimLine.setAttribute('class', 'cueLine');
+            overlay.appendChild(aimLine);
         }
+
+        // Set the attributes of the aiming line to draw it from the ball center to the cursor
+        aimLine.setAttribute('x1', ballCenterX);
+        aimLine.setAttribute('y1', ballCenterY);
+        aimLine.setAttribute('x2', ballCenterX - deltaX);
+        aimLine.setAttribute('y2', ballCenterY - deltaY);
     }
+}
+
+
+// Function to initiate the aiming phase
+function initiateAim() {
+    // Set aiming flag to true indicating the user is now in aiming mode
+    isAiming = true;
+    // Change the cursor style to 'grab' to indicate that the user can now aim
+    document.body.style.cursor = isAiming ? 'grab' : 'default';
+    
+    // Add an event listener for mouse movement to track the aiming direction
+    document.addEventListener('mousemove', activateAim);
+    // Add an event listener for mouse button release to end the aiming phase
+    document.addEventListener('mouseup', endAim);
+}
+
+
+ // Function to handle the end of aiming phase
+function endAim() {
+    // Set aiming flag to false indicating the user is no longer aiming
+    isAiming = false;
+    // Change the cursor style to default since aiming has ended
+    document.body.style.cursor = isAiming ? 'grab' : 'default';
+    
+    // Remove the event listener for mouse movement which was tracking the aim direction
+    document.removeEventListener('mousemove', activateAim);
+    // Remove the event listener for mouse button release which ends the aiming
+    document.removeEventListener('mouseup', endAim);
+    
+    // Check if the aiming line is currently being displayed
+    if (aimLine) {
+        // Clear the cue overlay where the aim line was being drawn
+        document.getElementById('cueOverlay').innerHTML = "";
+        // Reset the aiming line variable to null
+        aimLine = null;
+        // Trigger the shot animation function which handles the shot execution and animation
+        triggerShotAnimation();
+    }
+}
+
+
 
     function initializeENV() {
         isAiming = false;
