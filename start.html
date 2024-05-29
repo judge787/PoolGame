@@ -5,60 +5,61 @@
     <title>Pool Game</title>
     <style>
         body {
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background-color: whitesmoke;
-            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
-            color: white;
+            height: 100vh; /* Full viewport height */
+            margin: 0; /* Removes default margin */
+            padding: 0; /* Removes default padding */
+            display: flex; /* Enables flexbox layout */
+            flex-direction: column; /* Arranges flex items in a column */
+            justify-content: center; /* Centers items vertically */
+            align-items: center; /* Centers items horizontally */
+            background-color: whitesmoke; /* Background color */
+            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif; /* Font style */
+            color: white; /* Text color */
         }
         #gameHeader {
-            text-align: center;
+            text-align: center; /* Center aligns text */
         }
         #gameBoard {
-            display: flex;
-            width: 90vw;
-            height: 75vh;
-            box-shadow: 0px 0px 10px #000000;
-            align-items: center;
-            background-color: rgb(197, 196, 198);
+            display: flex; /* Enables flexbox layout */
+            width: 90vw; /* 90% of viewport width */
+            height: 75vh; /* 75% of viewport height */
+            box-shadow: 0px 0px 10px #000000; /* Adds shadow around the element */
+            align-items: center; /* Centers items vertically */
+            background-color: rgb(197, 196, 198); /* Background color */
         }
         .participantInfo {
-            padding: 15px;
-            flex: 1;
-            text-align: center;
+            padding: 15px; /* Padding inside the element */
+            flex: 1; /* Flex grow factor */
+            text-align: center; /* Center aligns text */
         }
         #poolTableContainer {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transform: scale(0.4);
+            display: flex; /* Enables flexbox layout */
+            justify-content: center; /* Centers items horizontally */
+            align-items: center; /* Centers items vertically */
+            transform: scale(0.4); /* Scales the element to 40% of its size */
         }
         #cueOverlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 999;
-            pointer-events: none;
+            position: absolute; /* Absolute positioning */
+            top: 0; /* Top offset */
+            left: 0; /* Left offset */
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            z-index: 999; /* Stacking order */
+            pointer-events: none; /* Prevents pointer events */
         }
         .cueLine {
-            stroke: black;
-            stroke-width: 4;
-            pointer-events: none;
-            z-index: 1000;
+            stroke: black; /* Line color */
+            stroke-width: 4; /* Line width */
+            pointer-events: none; /* Prevents pointer events */
+            z-index: 1000; /* Stacking order */
         }
         #poolGameTitle {
-            color: black !important;
+            color: black !important; /* Forces text color to black */
         }
     </style>
 </head>
 <body>
+    <!-- Main game board container -->
     <div id="gameHeader">
         <h1 id="poolGameTitle"></h1>
     </div>
@@ -196,75 +197,133 @@ function endAim() {
 }
 
 
-
+        // Function to initialize the game environment
     function initializeENV() {
+        // Set the aiming flag to false, indicating that the player is not currently aiming
         isAiming = false;
-
+        // Clear any existing aiming line by setting the aimLine variable to null
         aimLine = null;
-
+        // Get the SVG element representing the pool table using its ID 'gameSVG'
         svgTable = document.getElementById('gameSVG');
-
+        // Find the cue ball within the SVG table by searching for a circle element with a white fill color
         targetBall = svgTable.querySelector('circle[fill="WHITE"]');
 
+        // Check if the cue ball was found
         if (targetBall) {
+            // Add an event listener to the cue ball for the 'mousedown' event to initiate aiming when the ball is clicked
             targetBall.addEventListener('mousedown', initiateAim);
         } else {
+            // Log an error message to the console if the cue ball was not found
             console.error("Ball not found.");
         }
-    }
+}
 
+
+        // Function to trigger the shot animation
     function triggerShotAnimation() {
+        // Create a new XMLHttpRequest object for communicating with the server
         const httpRequest = new XMLHttpRequest();
+
+        // Define a callback function to handle changes in the request's state
         httpRequest.onreadystatechange = function() {
+            // Check if the request is complete
             if (this.readyState === XMLHttpRequest.DONE) {
+                // Check if the request was successful
                 if (this.status === 200) {
                     try {
-                        // Attempt to parse the server response
+                        // Attempt to parse the server response as JSON
                         const animationFrames = JSON.parse(this.responseText);
                         // If successful, start animating the SVG frames
                         runSVGAnimation(animationFrames, gameStatus);
                     } catch (parseError) {
-                        // Log and handle any parsing error
+                        // Log and handle any parsing errors
                         console.error("Error parsing", parseError);
                         gameStatus(initializeENV);
                     }
                 } else {
-                    // Log if there's an error with the HTTP request
+                    // Log an error if the HTTP request failed
                     console.error("Error: Shot request failed", this.statusText);
                 }
             }
         };
+
+        // Initialize a POST request to the '/executeShot' endpoint
         httpRequest.open("POST", "/executeShot", true);
+        // Set the request header to indicate URL-encoded form data
         httpRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        // Send the request with the game ID and shot velocities as parameters
         httpRequest.send("id=" + encodeURIComponent(id) + "&velocityX=" + encodeURIComponent(horizontalSpeed) + "&velocityY=" + encodeURIComponent(verticalSpeed));
     }
 
-    // Animates SVG frames sequentially
+
+        // Animates SVG frames sequentially with requestAnimationFrame for smoother animation
     function runSVGAnimation(frameData, onComplete) {
+        // Initialize the index of the current frame
         let frameIndex = 0;
 
+        // Inner function to display the next frame
         function displayNextFrame() {
+            // Get the container element for displaying the SVG frames
             const svgDisplayArea = document.getElementById('poolTableContainer');
 
+            // Clear any existing frame in the display area
             svgDisplayArea.innerHTML = '';
 
-            // Load and display the current frame
+            // Load the current frame from the frameData array
             const currentFrame = frameData[frameIndex];
+            // Display the current frame
             svgDisplayArea.innerHTML = currentFrame;
+            // Increment the frame index to move to the next frame
             frameIndex++;
 
-            // Continue to the next frame if available
+            // If there are more frames to display, use requestAnimationFrame for the next frame
             if (frameIndex < frameData.length) {
-                setTimeout(displayNextFrame, 1); // Proceed to next frame
+                requestAnimationFrame(displayNextFrame); // Proceed to next frame
             } else if (onComplete) {
                 // If all frames are displayed, call the completion handler
                 onComplete(initializeENV);
             }
         }
 
-        // Initiate the frame display sequence
+        // Start the frame display sequence
         displayNextFrame();
     }
+
+    //old runsvg function
+    // Animates SVG frames sequentially
+    // function runSVGAnimation(frameData, onComplete) {
+    //     // Initialize the index of the current frame
+    //     let frameIndex = 0;
+
+    //     // Inner function to display the next frame
+    //     function displayNextFrame() {
+    //         // Get the container element for displaying the SVG frames
+    //         const svgDisplayArea = document.getElementById('poolTableContainer');
+
+    //         // Clear any existing frame in the display area
+    //         svgDisplayArea.innerHTML = '';
+
+    //         // Load the current frame from the frameData array
+    //         const currentFrame = frameData[frameIndex];
+    //         // Display the current frame
+    //         svgDisplayArea.innerHTML = currentFrame;
+    //         // Increment the frame index to move to the next frame
+    //         frameIndex++;
+
+    //         // If there are more frames to display, set a timeout to display the next frame
+    //         if (frameIndex < frameData.length) {
+    //             setTimeout(displayNextFrame, 1); // Proceed to next frame
+    //         } else if (onComplete) {
+    //             // If all frames are displayed, call the completion handler
+    //             onComplete(initializeENV);
+    //         }
+    //     }
+
+    //     // Start the frame display sequence
+    //     displayNextFrame();
+    // }
+
+
 
     function updateElement(id, gamestat) {
         const element = document.getElementById(id);
