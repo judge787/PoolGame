@@ -256,7 +256,7 @@ function endAim() {
     }
 
 
-        // Animates SVG frames sequentially with requestAnimationFrame for smoother animation
+    // Animates SVG frames sequentially with requestAnimationFrame for smoother animation
     function runSVGAnimation(frameData, onComplete) {
         // Initialize the index of the current frame
         let frameIndex = 0;
@@ -269,17 +269,22 @@ function endAim() {
             // Clear any existing frame in the display area
             svgDisplayArea.innerHTML = '';
 
-            // Load the current frame from the frameData array
-            const currentFrame = frameData[frameIndex];
-            // Display the current frame
-            svgDisplayArea.innerHTML = currentFrame;
-            // Increment the frame index to move to the next frame
-            frameIndex++;
-
-            // If there are more frames to display, use requestAnimationFrame for the next frame
+            // Check if the current frame exists in the frameData array
             if (frameIndex < frameData.length) {
-                requestAnimationFrame(displayNextFrame); // Proceed to next frame
+                // Load the current frame from the frameData array
+                const currentFrame = frameData[frameIndex];
+                // Log the current frame for debugging
+                console.log(`Displaying frame ${frameIndex + 1} of ${frameData.length}`);
+                // Display the current frame
+                svgDisplayArea.innerHTML = currentFrame;
+                // Increment the frame index to move to the next frame
+                frameIndex++;
+
+                // Request the next frame to be displayed using requestAnimationFrame
+                requestAnimationFrame(displayNextFrame);
             } else if (onComplete) {
+                // Log completion of animation
+                console.log("Animation complete");
                 // If all frames are displayed, call the completion handler
                 onComplete(initializeENV);
             }
@@ -288,6 +293,7 @@ function endAim() {
         // Start the frame display sequence
         displayNextFrame();
     }
+
 
     //old runsvg function
     // Animates SVG frames sequentially
