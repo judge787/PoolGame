@@ -206,7 +206,7 @@ function endAim() {
         // Get the SVG element representing the pool table using its ID 'gameSVG'
         svgTable = document.getElementById('gameSVG');
         // Find the cue ball within the SVG table by searching for a circle element with a white fill color
-        targetBall = svgTable.querySelector('circle[fill="WHITE"]');
+        targetBall = svgTable.querySelector('circle[fill="white"]');
 
         // Check if the cue ball was found
         if (targetBall) {
@@ -256,11 +256,13 @@ function endAim() {
     }
 
 
-    // Animates SVG frames sequentially with requestAnimationFrame for smoother animation
+    // Animates SVG frames sequentially with proper timing for smooth animation
     function runSVGAnimation(frameData, onComplete) {
         // Initialize the index of the current frame
         let frameIndex = 0;
-
+        // Frame timing to match physics simulation (0.01 seconds = 10ms per frame)
+        const frameDelay = 10; // milliseconds
+        
         // Inner function to display the next frame
         function displayNextFrame() {
             // Get the container element for displaying the SVG frames
@@ -280,8 +282,8 @@ function endAim() {
                 // Increment the frame index to move to the next frame
                 frameIndex++;
 
-                // Request the next frame to be displayed using requestAnimationFrame
-                requestAnimationFrame(displayNextFrame);
+                // Use setTimeout to control frame timing for smooth animation
+                setTimeout(displayNextFrame, frameDelay);
             } else if (onComplete) {
                 // Log completion of animation
                 console.log("Animation complete");
@@ -295,48 +297,11 @@ function endAim() {
     }
 
 
-    //old runsvg function
-    // Animates SVG frames sequentially
-    // function runSVGAnimation(frameData, onComplete) {
-    //     // Initialize the index of the current frame
-    //     let frameIndex = 0;
-
-    //     // Inner function to display the next frame
-    //     function displayNextFrame() {
-    //         // Get the container element for displaying the SVG frames
-    //         const svgDisplayArea = document.getElementById('poolTableContainer');
-
-    //         // Clear any existing frame in the display area
-    //         svgDisplayArea.innerHTML = '';
-
-    //         // Load the current frame from the frameData array
-    //         const currentFrame = frameData[frameIndex];
-    //         // Display the current frame
-    //         svgDisplayArea.innerHTML = currentFrame;
-    //         // Increment the frame index to move to the next frame
-    //         frameIndex++;
-
-    //         // If there are more frames to display, set a timeout to display the next frame
-    //         if (frameIndex < frameData.length) {
-    //             setTimeout(displayNextFrame, 1); // Proceed to next frame
-    //         } else if (onComplete) {
-    //             // If all frames are displayed, call the completion handler
-    //             onComplete(initializeENV);
-    //         }
-    //     }
-
-    //     // Start the frame display sequence
-    //     displayNextFrame();
-    // }
-
-
-
     function updateElement(id, gamestat) {
         const element = document.getElementById(id);
         element.innerHTML = "";
         element.innerHTML = gamestats[gamestat];
     }
-
 
 
 // Function to request and update the game status, then execute a callback if provided
