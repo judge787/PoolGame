@@ -20,6 +20,7 @@ lastTable = None
 currentPlayer = 1  # 1 for player one, 2 for player two
 player1Type = None  # Will be "solids" or "stripes" 
 player2Type = None  # Will be "solids" or "stripes"
+gameWinner = None  # Will store the winning player's name
 
 def checkBallsPocketed(beforeTable, afterTable):
     """Check which balls were pocketed by comparing before and after tables"""
@@ -121,6 +122,40 @@ def shouldSwitchTurns(pocketedBalls):
     # Otherwise, switch turns
     return True
 
+def checkWinConditions(pocketedBalls):
+    """Check for winning conditions and return winner if any"""
+    global gameWinner, scorePlayerOne, scorePlayerTwo, player1Type, player2Type, currentPlayer, gameInstance
+    
+    currentPlayerName = gameInstance.player1Name if currentPlayer == 1 else gameInstance.player2Name
+    opponentName = gameInstance.player2Name if currentPlayer == 1 else gameInstance.player1Name
+    currentPlayerScore = scorePlayerOne if currentPlayer == 1 else scorePlayerTwo
+    currentPlayerType = player1Type if currentPlayer == 1 else player2Type
+    
+    # Check if 8-ball was pocketed
+    if 8 in pocketedBalls:
+        # Player wins if they have all their balls (score = 7) and pocket the 8-ball
+        if currentPlayerScore == 7:
+            gameWinner = currentPlayerName
+            return True
+        else:
+            # Player loses if they pocket 8-ball without having all their balls
+            gameWinner = opponentName
+            return True
+    
+    # Check if a player has pocketed all their balls (7 score)
+    # Note: They still need to pocket the 8-ball to win
+    if currentPlayerScore == 7:
+        # Player has all their balls but hasn't won yet (needs 8-ball)
+        return False
+    
+    # Check for scratch while shooting at 8-ball
+    if 0 in pocketedBalls and currentPlayerScore == 7:
+        # If player scratches while shooting at 8-ball, they lose
+        gameWinner = opponentName
+        return True
+    
+    return False
+
 def setupTable():
     table = Physics.Table()
 
@@ -195,7 +230,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 "gameName": gameInstance.gameName,
                 "currentPlayer": currentPlayerName,
                 "p1Type": player1Type or "Unassigned",
-                "p2Type": player2Type or "Unassigned"
+                "p2Type": player2Type or "Unassigned",
+                "winner": gameWinner
             }
 
             response = json.dumps(gameData)
@@ -233,12 +269,13 @@ class RequestHandler(SimpleHTTPRequestHandler):
             gameName = formData.getvalue("gameName")
             
             # Reset game state
-            global currentPlayer, scorePlayerOne, scorePlayerTwo, player1Type, player2Type
+            global currentPlayer, scorePlayerOne, scorePlayerTwo, player1Type, player2Type, gameWinner
             currentPlayer = 1  # Start with player 1
             scorePlayerOne = 0
             scorePlayerTwo = 0
             player1Type = None
             player2Type = None
+            gameWinner = None
 
             gameInstance = Physics.Game(gameName=gameName, player1Name=playerOneName, player2Name=playerTwoName)
             activePlayer = playerOneName  # Start with player 1
@@ -285,8 +322,11 @@ class RequestHandler(SimpleHTTPRequestHandler):
             # Update scores
             updateScores(pocketedBalls)
             
-            # Determine if turn should switch
-            if shouldSwitchTurns(pocketedBalls):
+            # Check for winning conditions
+            gameIsWon = checkWinConditions(pocketedBalls)
+            
+            # Only switch turns if the game hasn't been won
+            if not gameIsWon and shouldSwitchTurns(pocketedBalls):
                 currentPlayer = 2 if currentPlayer == 1 else 1
                 activePlayer = gameInstance.player2Name if currentPlayer == 2 else gameInstance.player1Name
 

@@ -323,8 +323,16 @@ function gameStatus(callback) {
 
                 // Update the inner HTML of the 'poolTableContainer' element with the SVG content of the pool table
                 document.getElementById('poolTableContainer').innerHTML = gameInfo.svg;
-                // Update the inner HTML of the 'poolGameTitle' element with the game name
-                document.getElementById('poolGameTitle').innerHTML = gameInfo.gameName;
+                // Update the inner HTML of the 'poolGameTitle' element with the game name or winner
+                if (gameInfo.winner) {
+                    document.getElementById('poolGameTitle').innerHTML = gameInfo.winner + " Wins!";
+                    document.getElementById('poolGameTitle').style.color = "gold";
+                    document.getElementById('poolGameTitle').style.fontSize = "3em";
+                } else {
+                    document.getElementById('poolGameTitle').innerHTML = gameInfo.gameName;
+                    document.getElementById('poolGameTitle').style.color = "";
+                    document.getElementById('poolGameTitle').style.fontSize = "";
+                }
                 // Update current turn display
                 document.getElementById('currentTurn').innerHTML = gameInfo.currentPlayer + "'s Turn";
                 // Update the inner HTML of the 'namePlayerOne' element with the first player's name
