@@ -62,11 +62,13 @@
     <!-- Main game board container -->
     <div id="gameHeader">
         <h1 id="poolGameTitle"></h1>
+        <h2 id="currentTurn" style="color: #333; margin: 10px 0;"></h2>
     </div>
     <div id="gameBoard">
         <div id="playerOne" class="participantInfo">
             <p id="statusPlayerOne"></p>
             <h3 id="namePlayerOne"></h3>
+            <p id="playerOneType" style="font-size: 14px; color: #666;"></p>
             <bold>Score:</bold>
             <p id="scorePlayerOne"></p>
         </div>
@@ -76,6 +78,7 @@
         <div id="playerTwo" class="participantInfo">
             <p id="statusPlayerTwo"></p>
             <h3 id="namePlayerTwo"></h3>
+            <p id="playerTwoType" style="font-size: 14px; color: #666;"></p>
             <bold>Score:</bold>
             <p id="scorePlayerTwo"></p>
         </div>
@@ -322,10 +325,15 @@ function gameStatus(callback) {
                 document.getElementById('poolTableContainer').innerHTML = gameInfo.svg;
                 // Update the inner HTML of the 'poolGameTitle' element with the game name
                 document.getElementById('poolGameTitle').innerHTML = gameInfo.gameName;
+                // Update current turn display
+                document.getElementById('currentTurn').innerHTML = gameInfo.currentPlayer + "'s Turn";
                 // Update the inner HTML of the 'namePlayerOne' element with the first player's name
                 document.getElementById('namePlayerOne').innerHTML = gameInfo.p1Name;
                 // Update the inner HTML of the 'namePlayerTwo' element with the second player's name
                 document.getElementById('namePlayerTwo').innerHTML = gameInfo.p2Name;
+                // Update player types
+                document.getElementById('playerOneType').innerHTML = "(" + gameInfo.p1Type + ")";
+                document.getElementById('playerTwoType').innerHTML = "(" + gameInfo.p2Type + ")";
                 // Update the inner HTML of the 'statusPlayerOne' element with the play status of the first player
                 document.getElementById('statusPlayerOne').innerHTML = gameInfo.p1Play;
                 // Update the inner HTML of the 'statusPlayerTwo' element with the play status of the second player
